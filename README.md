@@ -5,7 +5,7 @@ A Foundry VTT module that adds a **Record** button to the top of the Playlists s
 ## Usage
 
 1. Open the **Playlists** sidebar tab and click **Record**. Allow microphone access when the browser asks.
-2. The button turns red and shows the elapsed time. Click **Stop** when you're done.
+2. The button turns red and shows the elapsed time, and a live waveform of the incoming audio scrolls underneath it, so you can see the microphone is being captured. Click **Stop** when you're done.
 3. Enter a name and click **Save**. The file is saved as `recordings/<name>.ogg`. If that name is taken, a number is added, e.g. `<name> (2).ogg`.
 
 To use a recording, add a sound to any playlist and browse to `recordings/` in the file picker.
@@ -23,7 +23,7 @@ Foundry's bundled `.ogg` sounds are Ogg Vorbis, stereo, mostly 44.1 kHz at about
 | Sample rate | Your audio device's rate, usually 48 kHz |
 | Bitrate | VBR quality 8, about 256 kbps nominal (configurable) |
 
-Echo cancellation and noise suppression are turned off so the recording sounds natural. Automatic gain control is on by default, because phone and laptop microphones are often far too quiet without it; you can turn it off in the settings. While recording, the button doubles as an input level meter.
+Echo cancellation and noise suppression are turned off so the recording sounds natural. Automatic gain control is on by default, because phone and laptop microphones are often far too quiet without it; you can turn it off in the settings.
 
 Chromium-based browsers can't record Ogg natively, so the module bundles a WebAssembly Vorbis encoder ([wasm-media-encoders](https://github.com/arseneyr/wasm-media-encoders), libvorbis). It's served from the module folder; nothing is downloaded from a CDN.
 

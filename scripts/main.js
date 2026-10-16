@@ -9,6 +9,8 @@ const MODULE_ID = "playlist-recorder";
 const SOURCE = "data";
 const FOLDER = "recordings";
 const CHANNELS = 2;
+/** Peaks kept for the waveform; each covers 1024 frames (~21 ms at 48 kHz). */
+const WAVEFORM_HISTORY = 600;
 
 const localize = key => game.i18n.localize(`PLAYLIST_RECORDER.${key}`);
 const format = (key, data) => game.i18n.format(`PLAYLIST_RECORDER.${key}`, data);
@@ -24,6 +26,7 @@ class Recorder {
   state = "idle";
   startedAt = 0;
   chunks = [];
+  history = [];
   maxPeak = 0;
 
   get elapsed() {
@@ -62,6 +65,7 @@ class Recorder {
         vbrQuality: Number(game.settings.get(MODULE_ID, "quality"))
       });
       this.chunks = [];
+      this.history = [];
       this.maxPeak = 0;
 
       this.source = this.context.createMediaStreamSource(this.stream);
@@ -122,7 +126,8 @@ class Recorder {
       // The encoder owns the returned buffer, so it must be copied before the next call.
       if (encoded.length) this.chunks.push(encoded.slice());
       this.maxPeak = Math.max(this.maxPeak, data.peak);
-      this.level = data.peak;
+      this.history.push(...data.peaks);
+      if (this.history.length > WAVEFORM_HISTORY) this.history.splice(0, this.history.length - WAVEFORM_HISTORY);
     } else if (data.done) {
       this._resolveDone?.();
       this._resolveDone = null;
@@ -140,8 +145,15 @@ class Recorder {
   #setState(state) {
     this.state = state;
     clearInterval(this._timer);
-    this.level = 0;
-    if (state === "recording") this._timer = setInterval(() => updateButtons(), 100);
+    cancelAnimationFrame(this._frame);
+    if (state === "recording") {
+      this._timer = setInterval(() => updateButtons(), 250);
+      const draw = () => {
+        drawWaveforms(this.history);
+        this._frame = requestAnimationFrame(draw);
+      };
+      draw();
+    }
     updateButtons();
   }
 }
@@ -259,16 +271,53 @@ async function saveRecording(blob, duration) {
 /*  UI                                          */
 /* -------------------------------------------- */
 
+/**
+ * Draw the scrolling waveform (newest audio on the right) into every waveform canvas.
+ * Peaks are shown on a -60..0 dBFS scale so normal speech is clearly visible.
+ */
+function drawWaveforms(history) {
+  for (const canvas of document.querySelectorAll(".playlist-recorder-waveform")) {
+    const dpr = window.devicePixelRatio || 1;
+    const width = Math.round(canvas.clientWidth * dpr);
+    const height = Math.round(canvas.clientHeight * dpr);
+    if (!width || !height) continue;
+    if (canvas.width !== width || canvas.height !== height) {
+      canvas.width = width;
+      canvas.height = height;
+    }
+    const ctx = canvas.getContext("2d");
+    const color = getComputedStyle(canvas).color;
+    const mid = height / 2;
+    const stride = 3 * dpr;
+    const barWidth = 2 * dpr;
+    ctx.clearRect(0, 0, width, height);
+
+    ctx.globalAlpha = 0.35;
+    ctx.fillStyle = color;
+    ctx.fillRect(0, mid - dpr / 2, width, dpr);
+
+    ctx.globalAlpha = 1;
+    const count = Math.min(history.length, Math.floor(width / stride));
+    for (let i = 0; i < count; i++) {
+      const peak = history[history.length - 1 - i];
+      const db = 20 * Math.log10(Math.max(peak, 1e-6));
+      const level = Math.min(1, Math.max(0, (db + 60) / 60));
+      const barHeight = Math.max(dpr, level * (height - 2 * dpr));
+      ctx.fillRect(width - (i + 1) * stride, mid - barHeight / 2, barWidth, barHeight);
+    }
+  }
+}
+
 function updateButtons() {
+  const { state } = recorder;
+  for (const canvas of document.querySelectorAll(".playlist-recorder-waveform")) {
+    canvas.hidden = state !== "recording";
+  }
   for (const button of document.querySelectorAll(".playlist-recorder-button")) {
-    const { state } = recorder;
     const label = button.querySelector(".label");
     const icon = button.querySelector("i");
     button.classList.toggle("recording", state === "recording");
     button.disabled = state === "starting" || state === "stopping";
-    // Input level meter: map peak amplitude from -60 dBFS..0 dBFS onto 0..100%.
-    const db = 20 * Math.log10(Math.max(recorder.level ?? 0, 1e-6));
-    button.style.setProperty("--level", `${Math.min(100, Math.max(0, (db + 60) / 60 * 100)).toFixed(0)}%`);
     if (state === "recording") {
       icon.className = "fa-solid fa-stop";
       label.textContent = `${localize("Stop")} ${formatDuration(recorder.elapsed)}`;
@@ -297,7 +346,15 @@ function injectButton(element) {
     recorder.toggle();
   });
   header.append(button);
+
+  const canvas = document.createElement("canvas");
+  canvas.className = "playlist-recorder-waveform";
+  canvas.setAttribute("aria-label", localize("WaveformLabel"));
+  if (header.classList.contains("header-actions")) header.after(canvas);
+  else header.append(canvas);
+
   updateButtons();
+  if (recorder.state === "recording") drawWaveforms(recorder.history);
 }
 
 /* -------------------------------------------- */

@@ -1,8 +1,10 @@
 /**
  * AudioWorklet that buffers microphone PCM and posts it to the main thread
- * in blocks of BLOCK_SIZE frames as a [left, right] pair of Float32Arrays.
+ * in blocks of BLOCK_SIZE frames as a [left, right] pair of Float32Arrays,
+ * along with one peak level per SEGMENT_SIZE frames for the waveform display.
  */
-const BLOCK_SIZE = 4096;
+const BLOCK_SIZE = 2048;
+const SEGMENT_SIZE = 1024;
 
 class PlaylistRecorderProcessor extends AudioWorkletProcessor {
   constructor() {
@@ -10,7 +12,9 @@ class PlaylistRecorderProcessor extends AudioWorkletProcessor {
     this.left = new Float32Array(BLOCK_SIZE);
     this.right = new Float32Array(BLOCK_SIZE);
     this.offset = 0;
-    this.peak = 0;
+    this.peaks = [];
+    this.segmentPeak = 0;
+    this.segmentCount = 0;
     this.stereoSeen = false;
     this.active = true;
     this.port.onmessage = event => {
@@ -38,7 +42,12 @@ class PlaylistRecorderProcessor extends AudioWorkletProcessor {
       this.right.set(right.subarray(i, i + count), this.offset);
       for (let j = i; j < i + count; j++) {
         const level = Math.max(Math.abs(left[j]), Math.abs(right[j]));
-        if (level > this.peak) this.peak = level;
+        if (level > this.segmentPeak) this.segmentPeak = level;
+        if (++this.segmentCount === SEGMENT_SIZE) {
+          this.peaks.push(this.segmentPeak);
+          this.segmentPeak = 0;
+          this.segmentCount = 0;
+        }
       }
       this.offset += count;
       i += count;
@@ -56,9 +65,11 @@ class PlaylistRecorderProcessor extends AudioWorkletProcessor {
     if (!this.offset) return;
     const left = this.left.slice(0, this.offset);
     const right = this.right.slice(0, this.offset);
-    this.port.postMessage({ samples: [left, right], peak: this.peak }, [left.buffer, right.buffer]);
+    const peaks = this.peaks;
+    const peak = Math.max(this.segmentPeak, ...peaks);
+    this.port.postMessage({ samples: [left, right], peaks, peak }, [left.buffer, right.buffer]);
     this.offset = 0;
-    this.peak = 0;
+    this.peaks = [];
   }
 }
 

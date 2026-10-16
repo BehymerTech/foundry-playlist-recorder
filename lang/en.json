@@ -4,6 +4,7 @@
     "Stop": "Stop",
     "RecordTooltip": "Record audio from your microphone to an .ogg file",
     "StopTooltip": "Stop recording and save",
+    "WaveformLabel": "Live waveform of the audio being recorded",
     "SaveTitle": "Save Recording",
     "NameLabel": "Name",
     "NameHint": "Saved to {folder} in User Data as Ogg Vorbis. Length {duration}, about {size} KB.",
