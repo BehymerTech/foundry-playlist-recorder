@@ -23,14 +23,17 @@ Foundry's bundled `.ogg` sounds are Ogg Vorbis, stereo, mostly 44.1 kHz at about
 | Sample rate | Your audio device's rate, usually 48 kHz |
 | Bitrate | VBR quality 8, about 256 kbps nominal (configurable) |
 
-Echo cancellation and noise suppression are turned off so the recording sounds natural. Automatic gain control is on by default, because phone and laptop microphones are often far too quiet without it; you can turn it off in the settings.
+Echo cancellation and noise suppression are turned off so the recording sounds natural. Automatic gain control is requested by default, because phone and laptop microphones are often far too quiet without it, but iOS Safari ignores it.
+
+**Volume normalization** (on by default): when you stop, the whole recording is boosted so its loudest point sits at -1 dB, by up to +30 dB. This is what makes iPhone and iPad recordings usable; their raw microphone level typically peaks around -20 to -28 dB. Because normalization needs the whole recording, the raw audio is kept in memory until you stop (about 11 MB per minute for a mono microphone) and encoded then; the button shows **Encoding…** briefly.
 
 Chromium-based browsers can't record Ogg natively, so the module bundles a WebAssembly Vorbis encoder ([wasm-media-encoders](https://github.com/arseneyr/wasm-media-encoders), libvorbis). It's served from the module folder; nothing is downloaded from a CDN.
 
 ## Settings
 
 - **Recording Quality** (per user): Low (~128 kbps), Medium (~192 kbps), High (~256 kbps, default), Very high (~320 kbps).
-- **Automatic Gain Control** (per user, default on): lets the browser level the microphone input.
+- **Normalize Volume** (per user, default on): boost each recording to -1 dB peak, by up to +30 dB.
+- **Automatic Gain Control** (per user, default on): lets the browser level the microphone input (not supported by iOS Safari).
 
 ## Requirements
 

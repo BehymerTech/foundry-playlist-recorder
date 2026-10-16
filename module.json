@@ -2,7 +2,7 @@
   "id": "playlist-recorder",
   "title": "Playlist Recorder",
   "description": "Adds a Record button to the Playlists sidebar. Records your microphone to Ogg Vorbis (matching Foundry's bundled sounds) and saves it to User Data under recordings/.",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "authors": [
     {
       "name": "Joe Behymer"
@@ -30,7 +30,7 @@
   ],
   "url": "https://github.com/BehymerTech/foundry-playlist-recorder",
   "manifest": "https://github.com/BehymerTech/foundry-playlist-recorder/releases/latest/download/module.json",
-  "download": "https://github.com/BehymerTech/foundry-playlist-recorder/releases/download/v1.0.2/module.zip",
+  "download": "https://github.com/BehymerTech/foundry-playlist-recorder/releases/download/v1.0.3/module.zip",
   "bugs": "https://github.com/BehymerTech/foundry-playlist-recorder/issues",
   "license": "LICENSE"
 }

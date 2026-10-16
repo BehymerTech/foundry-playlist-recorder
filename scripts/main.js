@@ -11,6 +11,9 @@ const FOLDER = "recordings";
 const CHANNELS = 2;
 /** Peaks kept for the waveform; each covers 1024 frames (~21 ms at 48 kHz). */
 const WAVEFORM_HISTORY = 600;
+/** Normalization brings the loudest sample to -1 dBFS, boosting by at most +30 dB. */
+const NORMALIZE_TARGET = 10 ** (-1 / 20);
+const NORMALIZE_MAX_GAIN = 10 ** (30 / 20);
 
 const localize = key => game.i18n.localize(`PLAYLIST_RECORDER.${key}`);
 const format = (key, data) => game.i18n.format(`PLAYLIST_RECORDER.${key}`, data);
@@ -25,7 +28,8 @@ class Recorder {
   /** @type {"idle"|"starting"|"recording"|"stopping"} */
   state = "idle";
   startedAt = 0;
-  chunks = [];
+  /** @type {Float32Array[][]} Raw PCM blocks, one or two channels each. */
+  blocks = [];
   history = [];
   maxPeak = 0;
 
@@ -64,7 +68,7 @@ class Recorder {
         sampleRate: this.context.sampleRate,
         vbrQuality: Number(game.settings.get(MODULE_ID, "quality"))
       });
-      this.chunks = [];
+      this.blocks = [];
       this.history = [];
       this.maxPeak = 0;
 
@@ -88,7 +92,8 @@ class Recorder {
       console.error(`${MODULE_ID} | Failed to start recording`, err);
       const reason = err?.name === "NotAllowedError" ? localize("ErrorPermissionDenied") : err.message;
       ui.notifications.error(format("ErrorStart", { reason }));
-      await this.#teardown();
+      await this.#teardownAudio();
+      this.encoder = null;
       this.#setState("idle");
     }
   }
@@ -97,34 +102,62 @@ class Recorder {
     const duration = this.elapsed;
     this.#setState("stopping");
     let blob;
+    let finalPeak = 0;
     try {
       // Ask the worklet to flush its partial block, then wait for confirmation.
       await new Promise(resolve => {
         this._resolveDone = resolve;
         this.node.port.postMessage("stop");
       });
-      this.chunks.push(this.encoder.finalize().slice());
-      blob = new Blob(this.chunks, { type: "audio/ogg" });
+      await this.#teardownAudio();
+      const gain = this.#normalizationGain();
+      finalPeak = this.maxPeak * gain;
+      blob = await this.#encode(gain);
     } catch (err) {
       console.error(`${MODULE_ID} | Failed to finish recording`, err);
       ui.notifications.error(format("ErrorEncode", { reason: err.message }));
     } finally {
-      await this.#teardown();
-      this.chunks = [];
+      await this.#teardownAudio();
+      this.encoder = null;
+      this.blocks = [];
       this.#setState("idle");
     }
     if (!blob) return;
 
     if (this.maxPeak < 0.001) ui.notifications.warn(localize("WarnSilent"));
-    else if (this.maxPeak < 0.1) ui.notifications.warn(localize("WarnQuiet"));
+    else if (finalPeak < 0.1) ui.notifications.warn(localize("WarnQuiet"));
     await saveRecording(blob, duration);
+  }
+
+  /**
+   * Gain that brings the loudest sample to NORMALIZE_TARGET, limited to NORMALIZE_MAX_GAIN
+   * so a near-silent recording isn't turned into loud background noise.
+   */
+  #normalizationGain() {
+    if (!game.settings.get(MODULE_ID, "normalize") || this.maxPeak <= 0) return 1;
+    return Math.min(NORMALIZE_MAX_GAIN, Math.max(1, NORMALIZE_TARGET / this.maxPeak));
+  }
+
+  /** Encode the buffered PCM blocks to Ogg Vorbis, yielding periodically to keep the UI responsive. */
+  async #encode(gain) {
+    const chunks = [];
+    // The encoder owns the returned buffer, so it must be copied before the next call.
+    const push = encoded => { if (encoded.length) chunks.push(encoded.slice()); };
+    for (let i = 0; i < this.blocks.length; i++) {
+      const channels = this.blocks[i];
+      if (gain !== 1) for (const channel of channels) for (let j = 0; j < channel.length; j++) channel[j] *= gain;
+      push(this.encoder.encode(channels.length === CHANNELS ? channels : [channels[0], channels[0]]));
+      this.blocks[i] = null;
+      if (i % 50 === 49) await new Promise(resolve => setTimeout(resolve));
+    }
+    push(this.encoder.finalize());
+    return new Blob(chunks, { type: "audio/ogg" });
   }
 
   #onWorkletMessage(data) {
     if (data.samples) {
-      const encoded = this.encoder.encode(data.samples);
-      // The encoder owns the returned buffer, so it must be copied before the next call.
-      if (encoded.length) this.chunks.push(encoded.slice());
+      // Raw PCM is kept until Stop so the whole recording can be normalized before encoding.
+      this.blocks.push(data.samples);
       this.maxPeak = Math.max(this.maxPeak, data.peak);
       this.history.push(...data.peaks);
       if (this.history.length > WAVEFORM_HISTORY) this.history.splice(0, this.history.length - WAVEFORM_HISTORY);
@@ -134,12 +167,12 @@ class Recorder {
     }
   }
 
-  async #teardown() {
+  async #teardownAudio() {
     try { this.source?.disconnect(); } catch {}
     try { this.node?.disconnect(); } catch {}
     this.stream?.getTracks().forEach(track => track.stop());
     if (this.context && this.context.state !== "closed") await this.context.close().catch(() => {});
-    this.source = this.node = this.stream = this.context = this.encoder = null;
+    this.source = this.node = this.stream = this.context = null;
   }
 
   #setState(state) {
@@ -324,7 +357,7 @@ function updateButtons() {
       button.dataset.tooltip = localize("StopTooltip");
     } else {
       icon.className = state === "idle" ? "fa-solid fa-microphone" : "fa-solid fa-spinner fa-spin";
-      label.textContent = localize("Record");
+      label.textContent = localize(state === "stopping" ? "Encoding" : "Record");
       button.dataset.tooltip = localize("RecordTooltip");
     }
   }
@@ -375,6 +408,15 @@ Hooks.once("init", () => {
       8: "PLAYLIST_RECORDER.Quality8",
       9: "PLAYLIST_RECORDER.Quality9"
     }
+  });
+
+  game.settings.register(MODULE_ID, "normalize", {
+    name: "PLAYLIST_RECORDER.SettingNormalizeName",
+    hint: "PLAYLIST_RECORDER.SettingNormalizeHint",
+    scope: "client",
+    config: true,
+    type: Boolean,
+    default: true
   });
 
   game.settings.register(MODULE_ID, "autoGain", {
