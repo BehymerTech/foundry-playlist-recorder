@@ -45,7 +45,11 @@ class Recorder {
       // Load the encoder before opening the microphone so a failure doesn't leave it open.
       this.encoder = await WasmMediaEncoder.createEncoder("audio/ogg", moduleUrl("scripts/vendor/ogg.wasm"));
       this.stream = await navigator.mediaDevices.getUserMedia({
-        audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false },
+        audio: {
+          echoCancellation: false,
+          noiseSuppression: false,
+          autoGainControl: game.settings.get(MODULE_ID, "autoGain")
+        },
         video: false
       });
       this.context = new AudioContext();
@@ -108,6 +112,7 @@ class Recorder {
     if (!blob) return;
 
     if (this.maxPeak < 0.001) ui.notifications.warn(localize("WarnSilent"));
+    else if (this.maxPeak < 0.1) ui.notifications.warn(localize("WarnQuiet"));
     await saveRecording(blob, duration);
   }
 
@@ -117,6 +122,7 @@ class Recorder {
       // The encoder owns the returned buffer, so it must be copied before the next call.
       if (encoded.length) this.chunks.push(encoded.slice());
       this.maxPeak = Math.max(this.maxPeak, data.peak);
+      this.level = data.peak;
     } else if (data.done) {
       this._resolveDone?.();
       this._resolveDone = null;
@@ -134,7 +140,8 @@ class Recorder {
   #setState(state) {
     this.state = state;
     clearInterval(this._timer);
-    if (state === "recording") this._timer = setInterval(() => updateButtons(), 500);
+    this.level = 0;
+    if (state === "recording") this._timer = setInterval(() => updateButtons(), 100);
     updateButtons();
   }
 }
@@ -259,6 +266,9 @@ function updateButtons() {
     const icon = button.querySelector("i");
     button.classList.toggle("recording", state === "recording");
     button.disabled = state === "starting" || state === "stopping";
+    // Input level meter: map peak amplitude from -60 dBFS..0 dBFS onto 0..100%.
+    const db = 20 * Math.log10(Math.max(recorder.level ?? 0, 1e-6));
+    button.style.setProperty("--level", `${Math.min(100, Math.max(0, (db + 60) / 60 * 100)).toFixed(0)}%`);
     if (state === "recording") {
       icon.className = "fa-solid fa-stop";
       label.textContent = `${localize("Stop")} ${formatDuration(recorder.elapsed)}`;
@@ -308,6 +318,15 @@ Hooks.once("init", () => {
       8: "PLAYLIST_RECORDER.Quality8",
       9: "PLAYLIST_RECORDER.Quality9"
     }
+  });
+
+  game.settings.register(MODULE_ID, "autoGain", {
+    name: "PLAYLIST_RECORDER.SettingAutoGainName",
+    hint: "PLAYLIST_RECORDER.SettingAutoGainHint",
+    scope: "client",
+    config: true,
+    type: Boolean,
+    default: true
   });
 });
 

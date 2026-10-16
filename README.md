@@ -23,13 +23,14 @@ Foundry's bundled `.ogg` sounds are Ogg Vorbis, stereo, mostly 44.1 kHz at about
 | Sample rate | Your audio device's rate, usually 48 kHz |
 | Bitrate | VBR quality 8, about 256 kbps nominal (configurable) |
 
-Browser processing (echo cancellation, noise suppression, automatic gain) is turned off so the recording sounds natural.
+Echo cancellation and noise suppression are turned off so the recording sounds natural. Automatic gain control is on by default, because phone and laptop microphones are often far too quiet without it; you can turn it off in the settings. While recording, the button doubles as an input level meter.
 
 Chromium-based browsers can't record Ogg natively, so the module bundles a WebAssembly Vorbis encoder ([wasm-media-encoders](https://github.com/arseneyr/wasm-media-encoders), libvorbis). It's served from the module folder; nothing is downloaded from a CDN.
 
 ## Settings
 
 - **Recording Quality** (per user): Low (~128 kbps), Medium (~192 kbps), High (~256 kbps, default), Very high (~320 kbps).
+- **Automatic Gain Control** (per user, default on): lets the browser level the microphone input.
 
 ## Requirements
 

@@ -11,6 +11,7 @@ class PlaylistRecorderProcessor extends AudioWorkletProcessor {
     this.right = new Float32Array(BLOCK_SIZE);
     this.offset = 0;
     this.peak = 0;
+    this.stereoSeen = false;
     this.active = true;
     this.port.onmessage = event => {
       if (event.data !== "stop") return;
@@ -25,9 +26,11 @@ class PlaylistRecorderProcessor extends AudioWorkletProcessor {
     const input = inputs[0];
     if (!input?.length) return true;
 
-    // The node is configured for 2 explicit channels, so mono input arrives up-mixed.
+    // Mono microphones arrive as one channel; iOS Safari instead reports two channels
+    // with a digitally silent right channel. Either way, duplicate the left channel.
     const left = input[0];
-    const right = input[1] ?? input[0];
+    if (input[1] && !this.isEmpty(input[1])) this.stereoSeen = true;
+    const right = input[1] && (this.stereoSeen || this.isEmpty(left)) ? input[1] : left;
     let i = 0;
     while (i < left.length) {
       const count = Math.min(left.length - i, BLOCK_SIZE - this.offset);
@@ -41,6 +44,11 @@ class PlaylistRecorderProcessor extends AudioWorkletProcessor {
       i += count;
       if (this.offset === BLOCK_SIZE) this.flush();
     }
+    return true;
+  }
+
+  isEmpty(channel) {
+    for (let i = 0; i < channel.length; i++) if (channel[i] !== 0) return false;
     return true;
   }
 

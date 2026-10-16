@@ -4,7 +4,8 @@
 }
 
 .playlist-recorder-button.recording {
-  background: rgb(160 20 20 / 85%);
+  /* The bright part of the bar is the live input level, set by the module as --level. */
+  background: linear-gradient(to right, rgb(210 40 40) var(--level, 0%), rgb(110 15 15) var(--level, 0%));
   border-color: rgb(220 60 60);
   color: #fff;
   animation: playlist-recorder-pulse 1.4s ease-in-out infinite;
