@@ -47,7 +47,7 @@ https://github.com/BehymerTech/foundry-playlist-recorder/releases/latest/downloa
 
 ## Releasing
 
-Publish a GitHub release with a tag like `v1.0.1`. The release workflow stamps `module.json` with that version and URLs, builds `module.zip`, and attaches both to the release.
+Push a tag like `v1.0.1` (`git tag v1.0.1 && git push origin v1.0.1`). The release workflow stamps `module.json` with that version and URLs, builds `module.zip`, and publishes a release with both attached. If a release for the tag already exists (for example, one made in the GitHub UI), the files are attached to it instead.
 
 ## License
 
