@@ -1,0 +1,30 @@
+{
+  "PLAYLIST_RECORDER": {
+    "Record": "Record",
+    "Stop": "Stop",
+    "RecordTooltip": "Record audio from your microphone to an .ogg file",
+    "StopTooltip": "Stop recording and save",
+    "SaveTitle": "Save Recording",
+    "NameLabel": "Name",
+    "NameHint": "Saved to {folder} in User Data as Ogg Vorbis. Length {duration}, about {size} KB.",
+    "Save": "Save",
+    "Discard": "Discard",
+    "DiscardTitle": "Discard Recording?",
+    "DiscardConfirm": "This recording has not been saved. Discard it?",
+    "Discarded": "Recording discarded.",
+    "Saved": "Recording saved to {path}",
+    "WarnSilent": "The recording appears to be silent. Check your microphone input.",
+    "ErrorNoMicrophoneApi": "Microphone access is unavailable. Foundry must be opened over HTTPS or localhost.",
+    "ErrorPermissionDenied": "microphone permission was denied",
+    "ErrorStart": "Could not start recording: {reason}",
+    "ErrorEncode": "Could not finish encoding the recording: {reason}",
+    "ErrorSave": "Could not save the recording: {reason}",
+    "ErrorUploadUnknown": "the server did not accept the upload",
+    "SettingQualityName": "Recording Quality",
+    "SettingQualityHint": "Ogg Vorbis encoding quality. Foundry's bundled sounds are mostly about 256 kbps stereo.",
+    "Quality4": "Low (about 128 kbps)",
+    "Quality6": "Medium (about 192 kbps)",
+    "Quality8": "High (about 256 kbps, matches Foundry's sounds)",
+    "Quality9": "Very high (about 320 kbps)"
+  }
+}
